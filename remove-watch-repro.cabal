@@ -31,9 +31,11 @@ executable remove-watch-repro
     -- other-extensions:
     build-depends:    base ^>=4.16.2.0
                     , directory
+                    , extra
                     , filepath
                     , fsnotify
                     , random
                     , temporary
+                    , unix
     hs-source-dirs:   app
     default-language: Haskell2010

@@ -1,32 +1,42 @@
 module Main where
 
 import Control.Concurrent
-import Control.Exception (bracket)
-import qualified Control.Exception
+import Control.Concurrent.Extra (once)
 import Control.Monad (replicateM, void)
 import qualified System.Directory as FS
 import qualified System.FSNotify as FS
-import System.FilePath (FilePath, (</>))
+import System.FilePath ((</>))
 import qualified System.IO.Temp as Temp
+import qualified System.Posix.Signals as Signals
 import qualified System.Random as Random
 
 main :: IO ()
 main =
   withRandomTempDirectory $ \watchedDir -> do
-    let testDir = watchedDir </> "test"
-    FS.createDirectory testDir
-    writeFile (testDir </> "testfile") "boop"
+    let testFile = watchedDir </> "testfile"
+    writeFile testFile "foo"
 
-    void . forkIO $
-      FS.withManager $ \mgr ->
-        bracket
-          (FS.watchDir mgr watchedDir (const True) print)
-          void
-          id
+    FS.withManager $ \mgr -> do
+      removeWatchDir <- FS.watchDir mgr watchedDir (const True) print
+      let signalset =
+            Signals.CatchOnce $ do
+              putStrLn "Stopping file watcher"
+              removeWatchDir
+              -- Cachix is gracefully quiting by continuing to upload binaries
+              threadDelay (1 * 1000 * 1000)
+              putStrLn "Stopped."
+      void $ Signals.installHandler Signals.sigINT signalset Nothing
+      void $ Signals.installHandler Signals.sigTERM signalset Nothing
 
-    FS.removeDirectoryRecursive testDir
+      -- Test that file watching is working
+      FS.removeFile testFile
+      threadDelay (1 * 1000 * 1000)
 
-    threadDelay (2 * 1000 * 1000)
+      -- Please exit. Like, now.
+      Signals.raiseSignal Signals.sigINT
+      Signals.raiseSignal Signals.sigTERM
+
+      threadDelay (2 * 1000 * 1000)
 
 withRandomTempDirectory :: (FilePath -> IO ()) -> IO ()
 withRandomTempDirectory action = do
