@@ -17,7 +17,7 @@ main =
     writeFile testFile "foo"
 
     FS.withManager $ \mgr -> do
-      removeWatchDir <- FS.watchDir mgr watchedDir (const True) print
+      removeWatchDir <- once <$> FS.watchDir mgr watchedDir (const True) print
       let signalset =
             Signals.CatchOnce $ do
               putStrLn "Stopping file watcher"
